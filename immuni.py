@@ -67,7 +67,7 @@ def plot(df, alpha1=.05, alpha2=.1):
     ax[1].axhline(0, c="k", alpha=.2)
     ax[1].legend(loc="upper left")
 
-    # fig.set_facecolor('w')
+    fig.set_facecolor('w')
     plt.savefig("immuni.png", bbox_inches='tight')
 
 
@@ -110,6 +110,7 @@ def update():
     print("<- Done")
 
 
+# update()
 schedule.every().day.at("09:00").do(update)
 
 while True:

@@ -95,6 +95,7 @@ def update():
         "total_mean": [total_downloads[2]],
         "total_max_1": [total_downloads[3]],
         "total_max_2": [total_downloads[4]],
+        "google_reviews": [google_reviews],
     }
 
     old = pd.read_csv("immuni.csv", index_col=["date"], parse_dates=["date"])

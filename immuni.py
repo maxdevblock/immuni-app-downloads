@@ -1,4 +1,6 @@
+import os
 from sys import argv
+from shutil import copyfile
 import time
 import datetime as dt
 
@@ -15,6 +17,7 @@ from matplotlib import ticker
 
 import schedule
 
+DIR = os.path.dirname(os.path.realpath(__file__))
 
 def highest_density_interval(pmf, p=.9, debug=False):
     # If we pass a DataFrame, just call this recursively on the columns
@@ -197,6 +200,7 @@ def update():
 
     print(f"{dt.datetime.now()} Plotting...")
     plot(results)
+    copyfile("immuni.png", f"{DIR}/../covid-19-jupyter/immuni.png")
     print(f"{dt.datetime.now()} DONE!")
 
 

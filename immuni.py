@@ -45,8 +45,16 @@ def highest_density_interval(pmf, p=.9, debug=False):
 
 
 def gamma_params(x):
-    omega = x / 200
-    sigma = omega * 1.5
+    omega = x / 864.4295302013422
+    sigma = omega * 11.201342281879196
+    rate = (omega + np.sqrt(omega**2 + 4*(sigma**2))) / (2*(sigma**2))
+    shape = 1 + omega*rate
+    scale = 1 / rate
+    return (shape, scale)
+
+
+def gamma_priors(x, sigma):
+    omega = x
     rate = (omega + np.sqrt(omega**2 + 4*(sigma**2))) / (2*(sigma**2))
     shape = 1 + omega*rate
     scale = 1 / rate
@@ -79,8 +87,7 @@ def plot(results):
     ax[0].legend(loc="upper left")
     for yy in np.arange(1e6, 10e6+1, 1e6):
         ax[0].axhline(yy, c="r", ls=":", alpha=.25)
-    #for xx in hdi.index:
-    #    ax[0].axvline(xx, c="k", ls=":", alpha=.25)
+    
     ax[0].set_ylim(0, results['High_95'][-1])
 
     ax[1].plot(
@@ -215,10 +222,13 @@ R_range = np.linspace(0, R_max, steps+1)
 browser = RoboBrowser(history=False, parser="lxml")
 
 print(f"{dt.datetime.now()} Generating priors...")
-priors = sps.norm(
-    loc=D_range[1:],
-    scale=1e6
+
+prior_shape, prior_scale = gamma_priors(D_range[1:], 1e6)
+priors = sps.gamma(
+    a=prior_shape,
+    scale=prior_scale
 ).pdf(D_range[1:, None])
+
 priors /= priors.sum(axis=0)
 print(f"{dt.datetime.now()} Done")
 
@@ -234,5 +244,5 @@ if len(argv) > 1:
 schedule.every().day.at("09:00").do(update)
 
 while True:
-    schedule.run_pending()
-    time.sleep(1)
+   schedule.run_pending()
+   time.sleep(1)

@@ -1,0 +1,7 @@
+werkzeug
+lxml
+robobrowser
+numpy
+pandas
+scipy
+matplotlib

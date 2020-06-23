@@ -23,8 +23,14 @@ DIR = os.path.dirname(os.path.realpath(__file__))
 
 def millions(x, pos):
     'The two args are the value and tick position'
-    return '%1.1fM' % (x * 1e-6)
+    return f'{x*1e-6:.0f}'
 million_formatter = FuncFormatter(millions)
+
+
+def percentage(x, pos):
+    'The two args are the value and tick position'
+    return f'{x:.0f}%'
+percentage_formatter = FuncFormatter(percentage)
 
 
 def HDI(pmf, p=.9, debug=False):
@@ -137,7 +143,7 @@ def plot(results):
     ax[1].xaxis.set_major_locator(mdates.WeekdayLocator())
     ax[1].xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
     ax[1].xaxis.set_minor_locator(mdates.DayLocator())
-    ax[1].yaxis.set_major_formatter(ticker.PercentFormatter())
+    ax[1].yaxis.set_major_formatter(percentage_formatter)
     ax[1].set_ylabel("Percentuali")
 
     fig.set_facecolor('w')

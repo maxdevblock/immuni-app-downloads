@@ -241,7 +241,7 @@ print(f"{dt.datetime.now()} Done")
 
 if len(argv) > 1:
     update()
-schedule.every().day.at("09:00").do(update)
+schedule.every().day.at("07:00").do(update)
 
 while True:
    schedule.run_pending()

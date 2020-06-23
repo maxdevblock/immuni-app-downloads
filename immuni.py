@@ -14,15 +14,23 @@ import scipy.stats as sps
 import matplotlib.pyplot as plt
 from matplotlib import dates as mdates
 from matplotlib import ticker
+from matplotlib.ticker import FuncFormatter
 
 import schedule
 
 DIR = os.path.dirname(os.path.realpath(__file__))
 
-def highest_density_interval(pmf, p=.9, debug=False):
+
+def millions(x, pos):
+    'The two args are the value and tick position'
+    return '%1.1fM' % (x * 1e-6)
+million_formatter = FuncFormatter(millions)
+
+
+def HDI(pmf, p=.9, debug=False):
     # If we pass a DataFrame, just call this recursively on the columns
     if(isinstance(pmf, pd.DataFrame)):
-        return pd.DataFrame([highest_density_interval(pmf[col], p=p) for col in pmf],
+        return pd.DataFrame([HDI(pmf[col], p=p) for col in pmf],
                             index=pmf.columns)
     
     cumsum = np.cumsum(pmf.values)
@@ -121,6 +129,7 @@ def plot(results):
     ax[0].xaxis.set_major_locator(mdates.WeekdayLocator())
     ax[0].xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
     ax[0].xaxis.set_minor_locator(mdates.DayLocator())
+    ax[0].yaxis.set_major_formatter(million_formatter)
     ax[0].set_ylabel("Milioni di downloads")
 
     ax[1].set_title("Percentuale di downloads stimati su popolazione")
@@ -135,8 +144,8 @@ def plot(results):
     plt.savefig("immuni.png", bbox_inches='tight')
 
 
-def bayes(reviews):
-    D_rows = sps.gamma.pdf(reviews["reviews"].values[:,None], a=shape, scale=scale)
+def bayes(reviews, column="reviews"):
+    D_rows = sps.gamma.pdf(reviews[column].values[:,None], a=shape, scale=scale)
     D_rows = D_rows.transpose()
     likelihoods = pd.DataFrame(
         data=D_rows,
@@ -160,48 +169,55 @@ def bayes(reviews):
     return posteriors
 
 
-def update():
-    print(f"{dt.datetime.now()} Updating reviews...")
-    browser.open("https://play.google.com/store/apps/details?id=it.ministerodellasalute.immuni&hl=it_IT")
-    google = browser.select(".AYi5wd.TBRnV")
-    google_reviews = int(google[0].text.replace(".", ""))
-
-    print(f"{dt.datetime.now()} Google R: {google_reviews}")
-
-    browser.open("https://apps.apple.com/it/app/immuni/id1513940977")
-    apple = browser.select(".we-customer-ratings__count.small-hide.medium-show")
-    apple_reviews = int(apple[0].text.split(" ")[0].replace(",", ""))
-
-    print(f"{dt.datetime.now()} Apple R: {apple_reviews}")
-
-    total_reviews = google_reviews + apple_reviews
-
-    today = pd.Timestamp.now().date()
-
-    dic = {
-        "date": [today],
-        "google_reviews": [google_reviews],
-        "apple_reviews": [apple_reviews],
-        "reviews": [total_reviews],
-    }
-
+def update(from_browser=True):
     old = pd.read_csv("immuni-reviews.csv", index_col=["date"], parse_dates=["date"])
 
-    df = pd.DataFrame(dic)
-    df.set_index("date", inplace=True)
-    df = pd.concat([old, df], ignore_index=False)
-    df.to_csv("immuni-reviews.csv", index=True)
+    if from_browser:
+        print(f"{dt.datetime.now()} Updating reviews...")
+        browser.open("https://play.google.com/store/apps/details?id=it.ministerodellasalute.immuni&hl=it_IT")
+        google = browser.select(".AYi5wd.TBRnV")
+        google_reviews = int(google[0].text.replace(".", ""))
 
-    print(f"{dt.datetime.now()} DONE")
+        print(f"{dt.datetime.now()} Google R: {google_reviews}")
 
-    print(f"{dt.datetime.now()} Calculating posteriors...")
-    posteriors = bayes(df)
+        browser.open("https://apps.apple.com/it/app/immuni/id1513940977")
+        apple = browser.select(".we-customer-ratings__count.small-hide.medium-show")
+        apple_reviews = int(apple[0].text.split(" ")[0].replace(",", ""))
+
+        print(f"{dt.datetime.now()} Apple R: {apple_reviews}")
+
+        total_reviews = google_reviews + apple_reviews
+
+        today = pd.Timestamp.now().date()
+
+        dic = {
+            "date": [today],
+            "google_reviews": [google_reviews],
+            "apple_reviews": [apple_reviews],
+            "reviews": [total_reviews],
+        }
+
+        df = pd.DataFrame(dic)
+        df.set_index("date", inplace=True)
+        df = pd.concat([old, df], ignore_index=False)
+        df.to_csv("immuni-reviews.csv", index=True)
+
+        print(f"{dt.datetime.now()} DONE")
+    else:
+        df = old
+
+    print(f"{dt.datetime.now()} Calculating google posteriors...")
+    posteriors_google = bayes(df, "google_reviews")
+    print(f"{dt.datetime.now()} Done")
+    
+    print(f"{dt.datetime.now()} Calculating apple posteriors...")
+    posteriors_apple = bayes(df, "apple_reviews")
     print(f"{dt.datetime.now()} Done")
 
     print(f"{dt.datetime.now()} Extracting ML and HDI...")
-    most_likely_values = posteriors.idxmax(axis=0).rename('ML')
-    hdi50 = highest_density_interval(posteriors, p=.5)
-    hdi95 = highest_density_interval(posteriors, p=.95)
+    most_likely_values = posteriors_google.idxmax(axis=0).rename('ML') + posteriors_apple.idxmax(axis=0).rename('ML')
+    hdi50 = HDI(posteriors_google, p=.5) + HDI(posteriors_apple, p=.5)
+    hdi95 = HDI(posteriors_google, p=.95) + HDI(posteriors_apple, p=.95)
     results = pd.concat([most_likely_values, hdi50, hdi95], axis=1)
     print(f"{dt.datetime.now()} Done")
 
@@ -240,7 +256,10 @@ shape, scale = gamma_params(D_range[1:])
 print(f"{dt.datetime.now()} Done")
 
 if len(argv) > 1:
-    update()
+    if argv[1] == "browser":
+        update(from_browser=True)
+    else:
+        update(from_browser=False)
 schedule.every().day.at("07:00").do(update)
 
 while True:

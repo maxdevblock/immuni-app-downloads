@@ -2,6 +2,8 @@
 
 Backend in `python` per stima downloads dell'app Immuni tramite inferenza Bayesiana.
 
+Il metodo utilizzato è illustrato in questo [ARTICOLO](https://maxpierini.it/ncov/immuni-articolo.pdf).
+
 # Requisiti
 
 - `Python` v3.7

@@ -20,8 +20,6 @@ import schedule
 
 DIR = os.path.dirname(os.path.realpath(__file__))
 
-HDIs = [90, 50, 10]
-
 
 def millions(x, pos):
     'The two args are the value and tick position'
@@ -35,52 +33,27 @@ def percentage(x, pos):
 percentage_formatter = FuncFormatter(percentage)
 
 
-def HDI_matrix(pmf, x=False, p=.9):
-    """
-    Returns lower and higher values of given
-    pmf for given HDI p-value, and pmf mode.
-    """
-    # calculate cdf
-    cdf = np.cumsum(pmf)
-    # areas matrix
-    matrix = cdf - cdf[:, None]
-    # index of pmf mode
-    mode_idx = pmf.argmax()
-    # elements greater than given p
-    areas = matrix > p
-    # indexes of selected areas
-    los, his = areas.nonzero()
-    # differences from mode
-    his_d = his - mode_idx
-    los_d = mode_idx - los
-    # intervals differences
-    dif_d = abs(his_d - los_d)
-    # intervals sums
-    sum_d = his_d + los_d
-    # best interval differences
-    min_dif = np.where(dif_d == np.amin(dif_d))
-    # best sums
-    best_idx = min_dif[0][sum_d[min_dif].argmin()]
-    # best indexes
-    best_lo = los[best_idx]
-    best_hi = his[best_idx]
-
-    if x:
-        return (x[best_lo], x[best_hi], x[mode_idx])
-    return (best_lo, best_hi, mode_idx)
-
-
-def HDI_matrix_from_df(pmf, p=.9):
+def HDI(pmf, p=.9, debug=False):
+    # If we pass a DataFrame, just call this recursively on the columns
     if(isinstance(pmf, pd.DataFrame)):
-        return pd.DataFrame([HDI_matrix_from_df(pmf[col], p=p) for col in pmf],
+        return pd.DataFrame([HDI(pmf[col], p=p) for col in pmf],
                             index=pmf.columns)
     
-    lo_idx, hi_idx, _ = HDI_matrix(pmf.values, p=p)
-        
-    lo = pmf.index[lo_idx]
-    hi = pmf.index[hi_idx]
+    cumsum = np.cumsum(pmf.values)
     
-    return pd.Series([lo, hi],
+    # N x N matrix of total probability mass for each low, high
+    total_p = cumsum - cumsum[:, None]
+    
+    # Return all indices with total_p > p
+    lows, highs = (total_p > p).nonzero()
+    
+    # Find the smallest range (highest density)
+    best = (highs - lows).argmin()
+    
+    low = pmf.index[lows[best]]
+    high = pmf.index[highs[best]]
+    
+    return pd.Series([low, high],
                      index=[f'Low_{p*100:.0f}',
                             f'High_{p*100:.0f}'])
 
@@ -111,41 +84,51 @@ def plot(results):
         label='Most Likely',
         c='k',                   
     )
+    ax[0].fill_between(results.index,
+                    results['Low_50'],
+                    results['High_50'],
+                    color='k',
+                    alpha=.1,
+                    lw=0,
+                    label='HDI 50%')
+    ax[0].fill_between(results.index,
+                    results['Low_95'],
+                    results['High_95'],
+                    color='k',
+                    alpha=.05,
+                    lw=0,
+                    label='HDI 95%')
+    ax[0].legend(loc="upper left")
+    for yy in np.arange(1e6, 10e6+1, 1e6):
+        ax[0].axhline(yy, c="r", ls=":", alpha=.25)
+    
+    ax[0].set_ylim(0, results['High_95'][-1])
+
     ax[1].plot(
         results.index,
         results["ML"]/it_pop*100,
         label='Most Likely',
         c='k',                   
     )
-
-    for i, hdi in enumerate(HDIs):
-        ax[0].fill_between(results.index,
-                        results[f'Low_{hdi}'],
-                        results[f'High_{hdi}'],
-                        color='k',
-                        alpha=i*.2+.1,
-                        zorder=i+1,
-                        lw=0,
-                        label=f'HDI {hdi}%')
-        ax[1].fill_between(results.index,
-                        results[f'Low_{hdi}']/it_pop*100,
-                        results[f'High_{hdi}']/it_pop*100,
-                        color='k',
-                        alpha=i*.2+.1,
-                        zorder=i+1,
-                        lw=0,
-                        label=f'HDI {hdi}%')
-
-    ax[0].legend(loc="upper left")
+    ax[1].fill_between(results.index,
+                    results['Low_50']/it_pop*100,
+                    results['High_50']/it_pop*100,
+                    color='k',
+                    alpha=.1,
+                    lw=0,
+                    label='HDI 50%')
+    ax[1].fill_between(results.index,
+                    results['Low_95']/it_pop*100,
+                    results['High_95']/it_pop*100,
+                    color='k',
+                    alpha=.05,
+                    lw=0,
+                    label='HDI 95%')
     ax[1].legend(loc="upper left")
-
-    for yy in np.arange(1e6, 10e6+1, 1e6):
-        ax[0].axhline(yy, c="r", ls=":", alpha=.75, zorder=10)
     for yy in np.arange(2, 20+1, 2):
-        ax[1].axhline(yy, c="r", ls=":", alpha=.75, zorder=10)
+        ax[1].axhline(yy, c="r", ls=":", alpha=.25)
 
-    ax[0].set_ylim(0, results[f'High_{HDIs[0]}'][-1])
-    ax[1].set_ylim(0, results[f'High_{HDIs[0]}'][-1]/it_pop*100)
+    ax[1].set_ylim(0, results['High_95'][-1]/it_pop*100)
 
     ax[0].set_title("Downloads totali stimati dell'app Immuni")
     ax[0].set_xlim(results.index[0], results.index[-1])
@@ -239,11 +222,9 @@ def update(from_browser=True):
 
     print(f"{dt.datetime.now()} Extracting ML and HDI...")
     most_likely_values = posteriors_google.idxmax(axis=0).rename('ML') + posteriors_apple.idxmax(axis=0).rename('ML')
-    results = pd.concat([most_likely_values], axis=1)
-    for hdi in HDIs:
-        print(f"{dt.datetime.now()} Calculating {hdi}%...")
-        _hdi = HDI_matrix_from_df(posteriors_google, p=hdi/100) + HDI_matrix_from_df(posteriors_apple, p=hdi/100)
-        results = pd.concat([results, _hdi], axis=1)
+    hdi50 = HDI(posteriors_google, p=.5) + HDI(posteriors_apple, p=.5)
+    hdi95 = HDI(posteriors_google, p=.95) + HDI(posteriors_apple, p=.95)
+    results = pd.concat([most_likely_values, hdi50, hdi95], axis=1)
     print(f"{dt.datetime.now()} Done")
 
     print(f"{dt.datetime.now()} Plotting...")
@@ -283,10 +264,8 @@ print(f"{dt.datetime.now()} Done")
 if len(argv) > 1:
     if argv[1] == "browser":
         update(from_browser=True)
-        exit(0)
     else:
         update(from_browser=False)
-        exit(0)
 schedule.every().day.at("07:00").do(update)
 
 while True:

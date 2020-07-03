@@ -22,6 +22,9 @@ DIR = os.path.dirname(os.path.realpath(__file__))
 
 HDIs = [90, 50, 10]
 
+df = pd.read_csv("SummaryInfo.csv", index_col=0)
+theta_omega = df.loc["theta_omega"]["Median"]
+theta_sigma = df.loc["theta_sigma"]["Median"]
 
 def millions(x, pos):
     'The two args are the value and tick position'
@@ -86,15 +89,15 @@ def HDI_matrix_from_df(pmf, p=.9):
 
 
 def gamma_params(x):
-    omega = x / 864.4295302013422
-    sigma = omega * 11.201342281879196
+    omega = x * theta_omega
+    sigma = x * theta_sigma
     rate = (omega + np.sqrt(omega**2 + 4*(sigma**2))) / (2*(sigma**2))
     shape = 1 + omega*rate
     scale = 1 / rate
     return (shape, scale)
 
 
-def gamma_priors(x, sigma):
+def gamma_priors(x, sigma=353333):
     omega = x
     rate = (omega + np.sqrt(omega**2 + 4*(sigma**2))) / (2*(sigma**2))
     shape = 1 + omega*rate
@@ -264,7 +267,7 @@ browser = RoboBrowser(history=False, parser="lxml")
 
 print(f"{dt.datetime.now()} Generating priors...")
 
-prior_shape, prior_scale = gamma_priors(D_range[1:], 1e6)
+prior_shape, prior_scale = gamma_priors(D_range[1:])
 priors = sps.gamma(
     a=prior_shape,
     scale=prior_scale

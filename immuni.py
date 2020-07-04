@@ -38,48 +38,25 @@ def percentage(x, pos):
 percentage_formatter = FuncFormatter(percentage)
 
 
-def HDI_matrix(pmf, x=False, p=.9):
-    """
-    Returns lower and higher values of given
-    pmf for given HDI p-value, and pmf mode.
-    """
-    # calculate cdf
-    cdf = np.cumsum(pmf)
-    # areas matrix
-    matrix = cdf - cdf[:, None]
-    # index of pmf mode
-    mode_idx = pmf.argmax()
-    # elements greater than given p
-    areas = matrix > p
-    # indexes of selected areas
-    los, his = areas.nonzero()
-    # differences from mode
-    his_d = his - mode_idx
-    los_d = mode_idx - los
-    # intervals differences
-    dif_d = abs(his_d - los_d)
-    # intervals sums
-    sum_d = his_d + los_d
-    # best interval differences
-    min_dif = np.where(dif_d == np.amin(dif_d))
-    # best sums
-    best_idx = min_dif[0][sum_d[min_dif].argmin()]
-    # best indexes
-    best_lo = los[best_idx]
-    best_hi = his[best_idx]
-
-    if x:
-        return (x[best_lo], x[best_hi], x[mode_idx])
-    return (best_lo, best_hi, mode_idx)
+def HDI_of_grid(probMassVec, credMass=0.95):
+    sortedProbMass = np.sort(probMassVec, axis=None)[::-1]
+    HDIheightIdx = np.min(np.where(np.cumsum(sortedProbMass) >= credMass))
+    HDIheight = sortedProbMass[HDIheightIdx]
+    HDImass = np.sum(probMassVec[probMassVec >= HDIheight])
+    idx = np.where(probMassVec >= HDIheight)[0]
+    return {'indexes':idx, 'mass':HDImass, 'height':HDIheight}
 
 
-def HDI_matrix_from_df(pmf, p=.9):
+def HDI_of_grid_from_df(pmf, p):
+    # If we pass a DataFrame, just call this recursively on the columns
     if(isinstance(pmf, pd.DataFrame)):
-        return pd.DataFrame([HDI_matrix_from_df(pmf[col], p=p) for col in pmf],
+        return pd.DataFrame([HDI_of_grid_from_df(pmf[col], p=p) for col in pmf],
                             index=pmf.columns)
+    res = HDI_of_grid(pmf, p)
+    #print(res["indexes"])
+    lo_idx = res["indexes"][0]
+    hi_idx = res["indexes"][-1]
     
-    lo_idx, hi_idx, _ = HDI_matrix(pmf.values, p=p)
-        
     lo = pmf.index[lo_idx]
     hi = pmf.index[hi_idx]
     
@@ -245,7 +222,7 @@ def update(from_browser=True):
     results = pd.concat([most_likely_values], axis=1)
     for hdi in HDIs:
         print(f"{dt.datetime.now()} Calculating {hdi}%...")
-        _hdi = HDI_matrix_from_df(posteriors_google, p=hdi/100) + HDI_matrix_from_df(posteriors_apple, p=hdi/100)
+        _hdi = HDI_of_grid_from_df(posteriors_google, p=hdi/100) + HDI_of_grid_from_df(posteriors_apple, p=hdi/100)
         results = pd.concat([results, _hdi], axis=1)
     print(f"{dt.datetime.now()} Done")
 

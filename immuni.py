@@ -89,13 +89,13 @@ def plot(results):
         results.index,
         results["ML"],
         label='Most Likely',
-        c='k',                   
+        c='k',
     )
     ax[1].plot(
         results.index,
         results["ML"]/it_pop*100,
         label='Most Likely',
-        c='k',                   
+        c='k',
     )
 
     for i, hdi in enumerate(HDIs):
@@ -200,14 +200,14 @@ def update(from_browser=True):
             "reviews": [total_reviews],
         }
 
-        df = pd.DataFrame(dic)
-        df.set_index("date", inplace=True)
-        df = pd.concat([old, df], ignore_index=False)
-        df.to_csv("immuni-reviews.csv", index=True)
+        _df = pd.DataFrame(dic)
+        _df.set_index("date", inplace=True)
+        _df = pd.concat([old, _df], ignore_index=False)
+        _df.to_csv("immuni-reviews.csv", index=True)
 
         print(f"{dt.datetime.now()} DONE")
-    else:
-        df = old
+
+    df = pd.read_csv("immuni-reviews.csv", index_col=["date"], parse_dates=["date"])
 
     print(f"{dt.datetime.now()} Calculating google posteriors...")
     posteriors_google = bayes(df, "google_reviews")

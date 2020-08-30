@@ -145,6 +145,7 @@ def plot(results):
 
     fig.set_facecolor('w')
     plt.savefig("immuni.png", bbox_inches='tight')
+    plt.close(fig="all")
 
 
 def bayes(reviews, column="reviews"):
